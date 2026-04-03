@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attempt Quiz - NovaQuiz</title>
+    <link rel="stylesheet" href="styles.css">
+    <style>
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 4px;
+            margin: 1rem 0 2rem 0;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: var(--primary);
+            width: 0%;
+            transition: width 0.3s;
+        }
+        .quiz-wizard {
+            display: none;
+        }
+        .quiz-wizard.active {
+            display: block;
+            animation: fadeIn 0.4s;
+        }
+    </style>
+</head>
+<body>
+
+    <nav class="glass" id="main-nav" style="margin: 0; border-radius: 0; border-bottom: 1px solid rgba(255,255,255,0.1); border-top: none; border-left: none; border-right: none;"></nav>
+
+    <div class="container mt-4">
+        <div class="glass" style="padding: 2.5rem; max-width: 800px; margin: 0 auto; min-height: 400px" id="quiz-container">
+            <h2 id="loading-txt">Loading Quiz...</h2>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        const user = App.initAuth();
+        App.setupNavbar();
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const quizId = urlParams.get('id');
+
+        let quizData = null;
+        let currentQuestion = 0;
+        let userAnswers = [];
+
+        const initQuiz = async () => {
+            if (!quizId) {
+                document.getElementById('quiz-container').innerHTML = '<h2 style="color:var(--danger)">Quiz ID missing</h2>';
+                return;
+            }
+            try {
+                quizData = await ApiService.get(`/quizzes/${quizId}`);
+                userAnswers = new Array(quizData.questions.length).fill(null);
+                renderState();
+            } catch (error) {
+                document.getElementById('quiz-container').innerHTML = `<h2 style="color:var(--danger)">${error.message}</h2>`;
+            }
+        };
+
+        const renderState = () => {
+            const container = document.getElementById('quiz-container');
+            const question = quizData.questions[currentQuestion];
+            const progress = ((currentQuestion) / quizData.questions.length) * 100;
+
+            container.innerHTML = `
+                <div class="d-flex justify-between align-center">
+                    <h2 style="margin:0">${quizData.title}</h2>
+                    <span class="badge" style="background:rgba(255,255,255,0.1)">Question ${currentQuestion + 1} of ${quizData.questions.length}</span>
+                </div>
+                
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${progress}%"></div>
+                </div>
+
+                <div class="question-text mt-4 mb-4">
+                    ${question.questionText}
+                </div>
+
+                <div id="options-container">
+                    ${question.options.map((opt, idx) => `
+                        <button class="option-btn ${userAnswers[currentQuestion] === idx ? 'selected' : ''}" 
+                                onclick="selectOption(${idx})">${opt}</button>
+                    `).join('')}
+                </div>
+
+                <div class="d-flex justify-between mt-4" style="border-top:1px solid rgba(255,255,255,0.1); padding-top:1rem;">
+                    <button class="btn btn-secondary" onclick="prevQuestion()" ${currentQuestion === 0 ? 'disabled style="opacity:0.5"' : ''}>Previous</button>
+                    ${currentQuestion === quizData.questions.length - 1 
+                        ? `<button class="btn btn-primary" onclick="submitQuiz()" id="submit-btn" ${userAnswers[currentQuestion] === null ? 'disabled style="opacity:0.5"' : ''}>Submit Quiz</button>`
+                        : `<button class="btn btn-primary" onclick="nextQuestion()" ${userAnswers[currentQuestion] === null ? 'disabled style="opacity:0.5"' : ''}>Next</button>`
+                    }
+                </div>
+            `;
+        };
+
+        window.selectOption = (idx) => {
+            userAnswers[currentQuestion] = idx;
+            renderState();
+        };
+
+        window.nextQuestion = () => {
+            if(currentQuestion < quizData.questions.length - 1) {
+                currentQuestion++;
+                renderState();
+            }
+        };
+
+        window.prevQuestion = () => {
+            if(currentQuestion > 0) {
+                currentQuestion--;
+                renderState();
+            }
+        };
+
+        window.submitQuiz = async () => {
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.innerText = 'Submitting...';
+
+            try {
+                const res = await ApiService.post('/attempts', { quizId, userAnswers });
+                renderResults(res.result);
+            } catch (error) {
+                alert("Submission failed: " + error.message);
+                btn.disabled = false;
+                btn.innerText = 'Submit Quiz';
+            }
+        };
+
+        const renderResults = (result) => {
+            const container = document.getElementById('quiz-container');
+            const pass = (result.score / result.total) >= 0.5;
+            
+            container.innerHTML = `
+                <div class="text-center" style="padding: 2rem 0;">
+                    <h1 style="font-size: 3rem; margin-bottom: 1rem; color: ${pass ? 'var(--success)' : 'var(--danger)'}">
+                        ${result.score} / ${result.total}
+                    </h1>
+                    <h2 class="mb-4">${pass ? 'Congratulations! You passed!' : 'Better luck next time!'}</h2>
+                    <p class="text-secondary mb-4">Your score is ${Math.round(result.percentage)}%</p>
+                    
+                    <button class="btn btn-primary" onclick="window.location.href='dashboard.html'">Back to Dashboard</button>
+                </div>
+            `;
+        };
+
+        initQuiz();
+
+    </script>
+</body>
+</html>

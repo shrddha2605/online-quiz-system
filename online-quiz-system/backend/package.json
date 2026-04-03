@@ -1,0 +1,10 @@
+{
+  "name": "online-quiz-backend",
+  "version": "1.0.0",
+  "description": "Serverless lambda backend for online quiz system",
+  "main": "index.js",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "uuid": "^9.0.0"
+  }
+}

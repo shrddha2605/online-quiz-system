@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NovaQuiz - Secure Online Quizzes</title>
+    <link rel="stylesheet" href="styles.css">
+    <meta name="description" content="A premium online quiz platform.">
+</head>
+<body>
+
+    <nav class="glass" id="main-nav" style="margin: 0; border-radius: 0; border-bottom: 1px solid rgba(255,255,255,0.1); border-top: none; border-left: none; border-right: none;"></nav>
+
+    <div class="center-content">
+        <div class="glass auth-card">
+            <h2 id="form-title">Login to NovaQuiz</h2>
+            <div id="auth-alert"></div>
+            
+            <form id="auth-form">
+                <div class="form-group" id="username-group" style="display: none;">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" class="form-control" placeholder="Choose a username">
+                </div>
+                <div class="form-group">
+                    <label for="email">Email</label>
+                    <input type="email" id="email" class="form-control" placeholder="Enter your email" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" class="form-control" placeholder="Enter password" required>
+                </div>
+                <button type="submit" class="btn btn-primary" style="width: 100%" id="submit-btn">Sign In</button>
+            </form>
+            
+            <p class="text-center mt-3 text-secondary">
+                <span id="toggle-text">Don't have an account?</span> 
+                <a href="#" id="toggle-mode" style="color: var(--primary)">Register</a>
+            </p>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        App.setupNavbar();
+        
+        // If already logged in, redirect
+        if (localStorage.getItem('quiz_token')) {
+            window.location.href = 'dashboard.html';
+        }
+
+        let isLogin = true;
+        const form = document.getElementById('auth-form');
+        const toggleBtn = document.getElementById('toggle-mode');
+        
+        toggleBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            isLogin = !isLogin;
+            document.getElementById('form-title').innerText = isLogin ? 'Login to NovaQuiz' : 'Create an Account';
+            document.getElementById('username-group').style.display = isLogin ? 'none' : 'block';
+            document.getElementById('submit-btn').innerText = isLogin ? 'Sign In' : 'Sign Up';
+            document.getElementById('toggle-text').innerText = isLogin ? "Don't have an account?" : "Already have an account?";
+            toggleBtn.innerText = isLogin ? 'Register' : 'Login';
+        });
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const username = document.getElementById('username').value;
+            
+            const btn = document.getElementById('submit-btn');
+            btn.innerText = 'Processing...';
+            btn.disabled = true;
+
+            try {
+                if (isLogin) {
+                    const res = await ApiService.post('/login', { email, password });
+                    localStorage.setItem('quiz_token', res.token);
+                    localStorage.setItem('quiz_user', JSON.stringify(res.user));
+                    window.location.href = 'dashboard.html';
+                } else {
+                    await ApiService.post('/register', { email, password, username, role: 'user' });
+                    App.showAlert('auth-alert', 'Registration successful! Please login.', 'success');
+                    toggleBtn.click(); // switch to login
+                }
+            } catch (error) {
+                App.showAlert('auth-alert', error.message, 'error');
+            } finally {
+                btn.innerText = isLogin ? 'Sign In' : 'Sign Up';
+                btn.disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Quiz - Admin NovaQuiz</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+    <nav class="glass" id="main-nav" style="margin: 0; border-radius: 0; border-bottom: 1px solid rgba(255,255,255,0.1); border-top: none; border-left: none; border-right: none;"></nav>
+
+    <div class="container mt-4">
+        <div class="glass" style="padding: 2.5rem; max-width: 800px; margin: 0 auto;">
+            <h1 class="mb-4">Create New Quiz <span class="badge" style="font-size:12px; vertical-align:middle; background:var(--danger)">Admin</span></h1>
+            
+            <div id="admin-alert"></div>
+
+            <form id="quiz-form">
+                <div class="form-group">
+                    <label>Quiz Title</label>
+                    <input type="text" id="title" class="form-control" required>
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <div class="form-group" style="flex: 1">
+                        <label>Category</label>
+                        <select id="category" class="form-control">
+                            <option value="General">General Knowledge</option>
+                            <option value="Programming">Programming</option>
+                            <option value="Math">Math</option>
+                            <option value="Science">Science</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="description" class="form-control" rows="3"></textarea>
+                </div>
+
+                <hr style="border:1px solid rgba(255,255,255,0.1); margin: 2rem 0;">
+                
+                <div class="d-flex justify-between align-center mb-2">
+                    <h3>Questions</h3>
+                    <button type="button" class="btn btn-secondary" id="add-question-btn">+ Add Question</button>
+                </div>
+
+                <div id="questions-container">
+                    <!-- Dynamic Question blocks added here -->
+                </div>
+
+                <div class="mt-4 text-center">
+                    <button type="submit" class="btn btn-primary" style="width: 200px" id="save-btn">Save Quiz</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+    <script>
+        const user = App.initAuth();
+        App.setupNavbar();
+
+        if (user.role !== 'admin') {
+            document.querySelector('.container').innerHTML = `
+                <div class="glass" style="padding:2rem; text-align:center">
+                    <h2 style="color:var(--danger)">Access Denied</h2>
+                    <p>You do not have administrative privileges.</p>
+                </div>
+            `;
+        } else {
+            let questionCount = 0;
+            const qContainer = document.getElementById('questions-container');
+
+            const addQuestion = () => {
+                questionCount++;
+                const idx = questionCount - 1;
+                const div = document.createElement('div');
+                div.className = 'glass question-block';
+                div.innerHTML = `
+                    <div class="d-flex justify-between mb-2">
+                        <h4>Question ${questionCount}</h4>
+                        <button type="button" class="btn btn-danger" style="padding: 0.2rem 0.5rem;" onclick="this.parentElement.parentElement.remove()">X</button>
+                    </div>
+                    <div class="form-group">
+                        <input type="text" class="form-control q-text" placeholder="Enter question..." required>
+                    </div>
+                    <div class="form-group d-flex gap-2 align-center">
+                        <input type="radio" name="correct-${idx}" value="0" required title="Mark as correct">
+                        <input type="text" class="form-control q-opt" placeholder="Option 1" required>
+                    </div>
+                    <div class="form-group d-flex gap-2 align-center">
+                        <input type="radio" name="correct-${idx}" value="1">
+                        <input type="text" class="form-control q-opt" placeholder="Option 2" required>
+                    </div>
+                    <div class="form-group d-flex gap-2 align-center">
+                        <input type="radio" name="correct-${idx}" value="2">
+                        <input type="text" class="form-control q-opt" placeholder="Option 3">
+                    </div>
+                    <div class="form-group d-flex gap-2 align-center">
+                        <input type="radio" name="correct-${idx}" value="3">
+                        <input type="text" class="form-control q-opt" placeholder="Option 4">
+                    </div>
+                `;
+                qContainer.appendChild(div);
+            };
+
+            document.getElementById('add-question-btn').addEventListener('click', addQuestion);
+            addQuestion(); // add first question by default
+
+            document.getElementById('quiz-form').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const btn = document.getElementById('save-btn');
+                btn.disabled = true;
+                btn.innerText = 'Saving...';
+
+                try {
+                    const title = document.getElementById('title').value;
+                    const category = document.getElementById('category').value;
+                    const description = document.getElementById('description').value;
+                    
+                    const qBlocks = document.querySelectorAll('.question-block');
+                    const questions = [];
+
+                    qBlocks.forEach((block, index) => {
+                        const qText = block.querySelector('.q-text').value;
+                        const optInputs = block.querySelectorAll('.q-opt');
+                        const options = [];
+                        optInputs.forEach(input => {
+                            if(input.value.trim() !== '') options.push(input.value);
+                        });
+
+                        const correctRadio = block.querySelector(`input[type="radio"]:checked`);
+                        if (!correctRadio) throw new Error("Please select a correct answer for all questions.");
+                        const correctOptionIndex = parseInt(correctRadio.value);
+
+                        questions.push({
+                            questionText: qText,
+                            options: options,
+                            correctOptionIndex: correctOptionIndex
+                        });
+                    });
+
+                    if (questions.length === 0) throw new Error("At least one question is required.");
+
+                    await ApiService.post('/quizzes', {
+                        title, category, description, questions
+                    });
+
+                    App.showAlert('admin-alert', 'Quiz created successfully!', 'success');
+                    setTimeout(() => window.location.href = 'dashboard.html', 1500);
+
+                } catch (error) {
+                    App.showAlert('admin-alert', error.message, 'error');
+                } finally {
+                    btn.disabled = false;
+                    btn.innerText = 'Save Quiz';
+                }
+            });
+        }
+    </script>
+</body>
+</html>
